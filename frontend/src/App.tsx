@@ -256,14 +256,7 @@ function App() {
   )}
 </div>
 
-          <button
-  onClick={handleBackendAnalysis}
-  className="mt-4 w-full rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/20"
->
-  {analysis
-    ? `Analysis complete — ${analysis.risk_level} risk`
-    : "Run Backend Analysis"}
-         </button>
+          
         </section>
 
         {/* B4 — Incident Investigation */}
