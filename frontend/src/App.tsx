@@ -18,6 +18,7 @@ import {
   getMockImpactData,
 } from "./utils/blastRadius";
 import { GRAPH_NODES, GRAPH_EDGES } from "./data/graphData";
+import { analyzeRepository } from "./api/analyzeApi";
 
 // Pre-compute the node-id list (stable — same order as GRAPH_NODES)
 const ALL_NODE_IDS = GRAPH_NODES.map((n) => n.id);
@@ -25,6 +26,8 @@ const ALL_NODE_IDS = GRAPH_NODES.map((n) => n.id);
 function App() {
   const [selected, setSelected] =
     useState<SelectedNode | null>(null);
+  const [analysis, setAnalysis] =
+  useState<Awaited<ReturnType<typeof analyzeRepository>> | null>(null);
 
   const bobSectionRef = useRef<HTMLElement | null>(null);
 
@@ -34,6 +37,19 @@ function App() {
     },
     [],
   );
+
+  const handleBackendAnalysis = async () => {
+  try {
+    const result = await analyzeRepository({
+      repo_path: "tests/fixtures",
+      changed_files: ["sample_app/utils.py"],
+    });
+
+    setAnalysis(result);
+  } catch (error) {
+    console.error("ImpactOS analysis failed:", error);
+  }
+};
 
   // Recompute impact map whenever the selected node changes
   const impactMap = useMemo(() => {
@@ -179,6 +195,75 @@ function App() {
             impact={impactData}
             onInvestigate={handleInvestigate}
           />
+          <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.04] p-4">
+  <div className="flex items-center justify-between">
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+        Backend Analyzer
+      </p>
+
+      <p className="mt-1 text-xs text-slate-500">
+        Repository analysis from the ImpactOS Python engine
+      </p>
+    </div>
+
+    <button
+      onClick={handleBackendAnalysis}
+      className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-300 transition hover:bg-cyan-500/20"
+    >
+      {analysis ? "Run Again" : "Run Analysis"}
+    </button>
+  </div>
+
+  {analysis && (
+    <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3">
+        <p className="text-[10px] uppercase tracking-wide text-slate-500">
+          Risk
+        </p>
+        <p className="mt-1 text-lg font-semibold text-orange-400">
+          {analysis.risk_level}
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3">
+        <p className="text-[10px] uppercase tracking-wide text-slate-500">
+          Impact Score
+        </p>
+        <p className="mt-1 text-lg font-semibold text-cyan-400">
+          {analysis.impact_score}
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3">
+        <p className="text-[10px] uppercase tracking-wide text-slate-500">
+          Direct
+        </p>
+        <p className="mt-1 text-lg font-semibold text-slate-200">
+          {analysis.direct_count}
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3">
+        <p className="text-[10px] uppercase tracking-wide text-slate-500">
+          Indirect
+        </p>
+        <p className="mt-1 text-lg font-semibold text-slate-200">
+          {analysis.indirect_count}
+        </p>
+      </div>
+    </div>
+  )}
+</div>
+
+          <button
+  onClick={handleBackendAnalysis}
+  className="mt-4 w-full rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/20"
+>
+  {analysis
+    ? `Analysis complete — ${analysis.risk_level} risk`
+    : "Run Backend Analysis"}
+         </button>
         </section>
 
         {/* B4 — Incident Investigation */}
