@@ -1,3 +1,7 @@
+<<<<<<< HEAD
 fastapi
 uvicorn[standard]
 gitpython
+=======
+pytest>=7.0
+>>>>>>> origin/main
