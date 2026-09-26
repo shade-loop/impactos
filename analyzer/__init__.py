@@ -16,6 +16,7 @@ Public API
     from analyzer import ParsedModule, parse_file
     from analyzer import ImpactAnalyzer, ImpactReport
     from analyzer import ChangeAnalyzer, ChangeImpactReport, ChangeType
+    from analyzer import RiskAnalyzer, RiskAssessment, Recommendation
 
     # Task 01 — build the dependency graph
     graph = RepoAnalyzer("/path/to/repo").analyze()
@@ -29,6 +30,11 @@ Public API
     ca = ChangeAnalyzer(graph, repo_root="/path/to/repo")
     cr = ca.analyze_changes(["mypackage/utils.py", "mypackage/models.py"])
     print(cr.to_json())
+
+    # Task 04 — risk & action recommendation
+    from analyzer import RiskAnalyzer
+    risk = RiskAnalyzer(cr).assess()
+    print(risk.to_json())
 """
 
 from __future__ import annotations
@@ -38,6 +44,7 @@ from analyzer.graph import DependencyGraph, GraphEdge, GraphNode
 from analyzer.impact import ImpactAnalyzer, ImpactReport
 from analyzer.parser import ParsedModule, parse_file
 from analyzer.repo_analyzer import RepoAnalyzer
+from analyzer.risk import Recommendation, RiskAnalyzer, RiskAssessment
 
 __all__ = [
     # Task 01
@@ -54,4 +61,8 @@ __all__ = [
     "ChangeAnalyzer",
     "ChangeImpactReport",
     "ChangeType",
+    # Task 04
+    "RiskAnalyzer",
+    "RiskAssessment",
+    "Recommendation",
 ]

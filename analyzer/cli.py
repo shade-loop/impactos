@@ -4,7 +4,7 @@ analyzer.cli
 
 Lightweight command-line interface for ImpactOS.
 
-Supports two commands:
+Supports three commands:
 
 ``impact`` (default / Task 02)
     Analyse the blast radius of a single changed module.
@@ -12,6 +12,9 @@ Supports two commands:
 ``change`` (Task 03)
     Full change-impact analysis across one or more changed files / modules,
     with explainable output and optional JSON serialisation.
+
+``review`` (Task 04)
+    Risk & action recommendation report for one or more changed modules.
 
 Usage
 -----
@@ -26,6 +29,12 @@ Usage
     # Task 03 — change impact across multiple modules (human-readable)
     python -m analyzer.cli change <repo_path> <module_or_file> [<module_or_file> ...] [--type MODIFIED|ADDED|DELETED] [--json]
 
+    # Task 04 — risk & recommendation review (human-readable)
+    python -m analyzer.cli review <repo_path> <module_or_file> [<module_or_file> ...]
+
+    # Task 04 — risk & recommendation review (JSON)
+    python -m analyzer.cli review <repo_path> <module_or_file> [<module_or_file> ...] --json
+
 Examples::
 
     python -m analyzer.cli impact tests/fixtures sample_app.utils
@@ -34,6 +43,9 @@ Examples::
     python -m analyzer.cli change tests/fixtures sample_app.utils
     python -m analyzer.cli change tests/fixtures sample_app.utils sample_app.models
     python -m analyzer.cli change tests/fixtures sample_app.utils --json
+
+    python -m analyzer.cli review tests/fixtures/sample_app sample_app.utils
+    python -m analyzer.cli review tests/fixtures/sample_app sample_app.utils --json
 
 Exit codes
 ----------
@@ -63,6 +75,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Commands:\n"
             "  impact  Analyse the blast radius of a single changed module.\n"
             "  change  Full change-impact analysis across one or more changed files.\n"
+            "  review  Risk & action recommendation report (Task 04).\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -133,6 +146,37 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="output_json",
         help="Print the ChangeImpactReport as machine-readable JSON.",
+    )
+
+    # ------------------------------------------------------------------ review
+    review_parser = subparsers.add_parser(
+        "review",
+        help="Risk & action recommendation report for changed modules (Task 04).",
+        description=(
+            "Analyse a Python repository, compute change impact, and produce "
+            "a risk assessment with actionable TEST and REVIEW recommendations."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    review_parser.add_argument(
+        "repo_path",
+        metavar="REPO_PATH",
+        help="Root directory of the Python repository to analyse.",
+    )
+    review_parser.add_argument(
+        "changed",
+        metavar="MODULE_OR_FILE",
+        nargs="+",
+        help=(
+            "One or more changed dotted module names or file paths "
+            "(e.g. 'sample_app.utils' or 'sample_app/utils.py')."
+        ),
+    )
+    review_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="output_json",
+        help="Print the RiskAssessment as machine-readable JSON.",
     )
 
     return parser
@@ -279,6 +323,72 @@ def _format_change_human(report) -> str:  # type: ignore[no-untyped-def]
     return "\n".join(lines)
 
 
+def _format_review_human(
+    assessment,  # type: ignore[no-untyped-def]
+    changed: list,
+) -> str:
+    """Render a :class:`~analyzer.risk.RiskAssessment` as demo-quality output.
+
+    Args:
+        assessment: The :class:`~analyzer.risk.RiskAssessment` to render.
+        changed:    List of changed module names (for the header).
+
+    Returns:
+        Multi-line string suitable for terminal output.
+    """
+    sep = "=" * 60
+    lines: list[str] = [
+        "",
+        sep,
+        " ImpactOS - Change Risk Review",
+        sep,
+        "",
+    ]
+
+    # Changed modules
+    if len(changed) == 1:
+        lines.append(" Changed:")
+        lines.append(f"   {changed[0]}")
+    else:
+        lines.append(f" Changed ({len(changed)} modules):")
+        for mod in changed:
+            lines.append(f"   {mod}")
+
+    lines.append("")
+    lines.append(f" Risk Level   : {assessment.risk_level}")
+    lines.append(f" Impact Score : {assessment.impact_score:.4f}")
+    lines.append("")
+
+    # Evidence
+    if assessment.evidence:
+        lines.append(" Evidence:")
+        for ev in assessment.evidence:
+            lines.append(f"   * {ev}")
+        lines.append("")
+
+    # TEST recommendations
+    test_recs = [r for r in assessment.recommendations if r.category == "TEST"]
+    if test_recs:
+        lines.append(" Recommended Validation:")
+        for rec in test_recs:
+            lines.append(f"   [TEST] {rec.module}")
+            lines.append(f"     {rec.priority} -- {rec.reason}")
+            lines.append("")
+
+    # REVIEW recommendations
+    review_recs = [r for r in assessment.recommendations if r.category == "REVIEW"]
+    if review_recs:
+        lines.append(" Recommended Review:")
+        for rec in review_recs:
+            lines.append(f"   [REVIEW] {rec.module}")
+            lines.append(f"     {rec.priority} -- {rec.reason}")
+            lines.append("")
+
+    lines.append(sep)
+    lines.append("")
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Command handlers
 # ---------------------------------------------------------------------------
@@ -363,6 +473,45 @@ def _run_change(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_review(args: argparse.Namespace) -> int:
+    """Execute the ``review`` command.
+
+    Args:
+        args: Parsed CLI arguments.
+
+    Returns:
+        Exit code.
+    """
+    from analyzer.change import ChangeAnalyzer  # noqa: PLC0415
+    from analyzer.repo_analyzer import RepoAnalyzer  # noqa: PLC0415
+    from analyzer.risk import RiskAnalyzer  # noqa: PLC0415
+
+    repo_path = Path(args.repo_path)
+    if not repo_path.is_dir():
+        print(
+            f"ERROR: repo_path {str(repo_path)!r} is not a directory.",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        graph = RepoAnalyzer(repo_path).analyze()
+    except Exception as exc:  # pragma: no cover
+        print(f"ERROR: Repository analysis failed: {exc}", file=sys.stderr)
+        return 1
+
+    ca = ChangeAnalyzer(graph, repo_root=repo_path)
+    change_report = ca.analyze_changes(args.changed)
+    assessment = RiskAnalyzer(change_report).assess()
+
+    if args.output_json:
+        print(assessment.to_json())
+    else:
+        print(_format_review_human(assessment, change_report.changed_modules))
+
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -384,7 +533,7 @@ def main(argv: list[str] | None = None) -> int:
     # This allows the legacy positional form ``<repo> <target>`` to still
     # work for backwards compatibility with Task 02 tests.
     args_list: list[str] = list(argv) if argv is not None else sys.argv[1:]
-    known_commands = {"impact", "change"}
+    known_commands = {"impact", "change", "review"}
     first_token = next(
         (a for a in args_list if not a.startswith("-")), None
     )
@@ -394,6 +543,8 @@ def main(argv: list[str] | None = None) -> int:
         args = parser.parse_args(args_list)
         if args.command == "change":
             return _run_change(args)
+        if args.command == "review":
+            return _run_review(args)
         return _run_impact(args)
     else:
         # No recognised subcommand — fall back to legacy positional form for
