@@ -19,7 +19,6 @@
 
 import { useState } from "react";
 import {
-  AlertTriangle,
   Bot,
   Check,
   CheckSquare,
