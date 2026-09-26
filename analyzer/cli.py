@@ -82,6 +82,22 @@ def _build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command")
 
+    # -------------------------------------------------------------- git-status
+    git_status_parser = subparsers.add_parser(
+        "git-status",
+        help="Detect changed Python files in a Git repository (Task 06).",
+        description=(
+            "Run git status on the given repository and display all changed "
+            "Python files with their status (M/A/D/R)."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    git_status_parser.add_argument(
+        "repo_path",
+        metavar="REPO_PATH",
+        help="Root directory of the Git repository to inspect.",
+    )
+
     # ------------------------------------------------------------------ impact
     impact_parser = subparsers.add_parser(
         "impact",
@@ -517,6 +533,55 @@ def _run_review(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _run_git_status(args: argparse.Namespace) -> int:
+    """Execute the ``git-status`` command (Task 06).
+
+    Displays all changed Python files detected in the Git working tree.
+
+    Output format::
+
+        Detected changes:
+
+          M  analyzer/foo.py
+          A  analyzer/bar.py
+          D  analyzer/old.py
+          R  old.py -> new.py
+
+    Args:
+        args: Parsed CLI arguments.
+
+    Returns:
+        Exit code.
+    """
+    from analyzer.git import GitChangeDetector, GitError  # noqa: PLC0415
+
+    repo_path = Path(args.repo_path)
+
+    try:
+        detector = GitChangeDetector(repo_path)
+        changes = detector.detect_changes()
+    except GitError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    print("Detected changes:")
+    print()
+    if not changes:
+        print("  (no changed Python files)")
+    else:
+        _STATUS_SYMBOLS = {
+            "modified": "M",
+            "added": "A",
+            "deleted": "D",
+            "renamed": "R",
+        }
+        for change in changes:
+            symbol = _STATUS_SYMBOLS.get(change.status, "?")
+            print(f"  {symbol}  {change.path}")
+    print()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the ImpactOS CLI.
 
@@ -533,7 +598,7 @@ def main(argv: list[str] | None = None) -> int:
     # This allows the legacy positional form ``<repo> <target>`` to still
     # work for backwards compatibility with Task 02 tests.
     args_list: list[str] = list(argv) if argv is not None else sys.argv[1:]
-    known_commands = {"impact", "change", "review"}
+    known_commands = {"impact", "change", "review", "git-status"}
     first_token = next(
         (a for a in args_list if not a.startswith("-")), None
     )
@@ -545,6 +610,8 @@ def main(argv: list[str] | None = None) -> int:
             return _run_change(args)
         if args.command == "review":
             return _run_review(args)
+        if args.command == "git-status":
+            return _run_git_status(args)
         return _run_impact(args)
     else:
         # No recognised subcommand — fall back to legacy positional form for

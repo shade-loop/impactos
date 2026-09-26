@@ -40,6 +40,7 @@ Public API
 from __future__ import annotations
 
 from analyzer.change import ChangeAnalyzer, ChangeImpactReport, ChangeType
+from analyzer.git import GitChange, GitChangeDetector, GitError, NotAGitRepository, RepositoryNotFound
 from analyzer.graph import DependencyGraph, GraphEdge, GraphNode
 from analyzer.impact import ImpactAnalyzer, ImpactReport
 from analyzer.parser import ParsedModule, parse_file
@@ -65,4 +66,10 @@ __all__ = [
     "RiskAnalyzer",
     "RiskAssessment",
     "Recommendation",
+    # Task 06
+    "GitChange",
+    "GitChangeDetector",
+    "GitError",
+    "NotAGitRepository",
+    "RepositoryNotFound",
 ]

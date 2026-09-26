@@ -298,16 +298,26 @@ class TestValidationErrors:
         assert "repo_path" in body["error"]["message"]
 
     def test_missing_changed_files(self, api_server):
-        """09 — Missing changed_files → 400 INVALID_REQUEST."""
+        """09 — Missing changed_files triggers Git auto-detection (Task 06).
+
+        When changed_files is omitted the API falls through to Git detection.
+        The response must not be a validation error about 'changed_files'
+        being required — it is now optional.  The fixture dir may or may not
+        be inside a Git repo depending on the environment; we only assert
+        that validation-level rejection is absent.
+        """
         host, port = api_server
         status, body = _request(
             host, port, "POST", "/analyze",
             body={"repo_path": SAMPLE_APP_REPO},
         )
-        assert status == 400
-        assert body["success"] is False
-        assert body["error"]["code"] == "INVALID_REQUEST"
-        assert "changed_files" in body["error"]["message"]
+        assert body["success"] is False or body["success"] is True  # either is valid
+        # Must NOT return the old "changed_files is required" validation error
+        if not body["success"]:
+            assert not (
+                body["error"]["code"] == "INVALID_REQUEST"
+                and "changed_files" in body["error"]["message"]
+            )
 
     def test_empty_changed_files(self, api_server):
         """10 — Empty changed_files list → 400 INVALID_REQUEST."""

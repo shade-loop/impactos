@@ -2,7 +2,7 @@
 analyzer.api
 ~~~~~~~~~~~~
 
-ImpactOS HTTP JSON API — Task 05.
+ImpactOS HTTP JSON API — Tasks 05–06.
 
 Exposes the ImpactOS analysis pipeline through a minimal HTTP server built on
 the Python standard library (``http.server`` + ``socketserver``).  No external
@@ -14,17 +14,19 @@ Architecture
 
     HTTP Request
          ↓
-    ImpactOS API  (this module)
+     ImpactOS API  (this module)
          ↓
-    RepoAnalyzer
+     GitChangeDetector (when changed_files omitted — Task 06)
          ↓
-    DependencyGraph
+     RepoAnalyzer
          ↓
-    ChangeAnalyzer
+     DependencyGraph
          ↓
-    RiskAnalyzer
+     ChangeAnalyzer
          ↓
-    JSON Response
+     RiskAnalyzer
+         ↓
+     JSON Response
 
 This module is a **thin integration layer only**.  All business logic lives in
 the analyzer sub-modules from Tasks 01–04.
@@ -66,6 +68,13 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 from analyzer.change import ChangeAnalyzer  # noqa: E402
+from analyzer.git import (  # noqa: E402
+    GitChange,
+    GitChangeDetector,
+    GitError,
+    NotAGitRepository,
+    RepositoryNotFound,
+)
 from analyzer.repo_analyzer import RepoAnalyzer  # noqa: E402
 from analyzer.risk import RiskAnalyzer  # noqa: E402
 
@@ -108,15 +117,16 @@ def _error_response(code: str, message: str) -> Dict[str, Any]:
 
 def _run_analysis(
     repo_path: str,
-    changed_files: List[str],
+    changed_files: Optional[List[str]],
 ) -> Tuple[bool, int, Dict[str, Any]]:
     """Run the full ImpactOS pipeline and return a serialisable result.
 
-    Delegates entirely to Tasks 01–04 classes; contains no business logic.
+    Delegates entirely to Tasks 01–06 classes; contains no business logic.
 
     Args:
         repo_path:     Path to the repository root directory.
-        changed_files: List of file paths (relative or absolute) to analyse.
+        changed_files: List of file paths to analyse, or ``None`` to trigger
+                       automatic Git change detection (Task 06).
 
     Returns:
         A 3-tuple ``(ok, http_status, body_dict)``.  When *ok* is ``True``
@@ -142,6 +152,63 @@ def _run_analysis(
             ),
         )
 
+    # ------------------------------------------------------------------
+    # Task 06 — automatic Git change detection
+    # ------------------------------------------------------------------
+    git_changes: List[GitChange] = []
+    source: str
+
+    if changed_files is None:
+        # Automatic mode: detect changes from Git.
+        try:
+            detector = GitChangeDetector(path)
+            git_changes = detector.detect_changes()
+        except RepositoryNotFound as exc:
+            return (
+                False,
+                404,
+                _error_response("REPO_NOT_FOUND", str(exc)),
+            )
+        except NotAGitRepository as exc:
+            return (
+                False,
+                400,
+                _error_response("NOT_A_GIT_REPO", str(exc)),
+            )
+        except GitError as exc:
+            return (
+                False,
+                500,
+                _error_response("GIT_ERROR", f"Git detection failed: {exc}"),
+            )
+
+        source = "git"
+        changed_files = [c.path for c in git_changes]
+
+        # No changed Python files — return a clean empty success response.
+        if not changed_files:
+            empty_data: Dict[str, Any] = {
+                "source": source,
+                "git_changes": [],
+                "changed_files": [],
+                "changed_modules": [],
+                "risk_level": "LOW",
+                "impact_score": 0.0,
+                "affected_count": 0,
+                "direct_count": 0,
+                "indirect_count": 0,
+                "max_depth": 0,
+                "direct_affected": [],
+                "indirect_affected": [],
+                "all_affected": [],
+                "evidence": [],
+                "recommendations": [],
+                "unknown_files": [],
+            }
+            return True, 200, _success_response(empty_data)
+    else:
+        source = "manual"
+
     try:
         # Task 01 — build dependency graph
         graph = RepoAnalyzer(path).analyze()
@@ -162,8 +229,10 @@ def _run_analysis(
         )
 
     # Check for unknown files/modules (soft error — still return 200 with data
-    # but flag unknown_modules so the caller can surface them)
-    if change_report.unknown_modules and not change_report.changed_modules:
+    # but flag unknown_modules so the caller can surface them).
+    # Only raise this error for manual mode; in git mode, deleted files may
+    # not be in the graph and that is expected/acceptable.
+    if source == "manual" and change_report.unknown_modules and not change_report.changed_modules:
         # Every input was unknown — nothing could be analysed
         return (
             False,
@@ -182,7 +251,15 @@ def _run_analysis(
     change_dict = change_report.to_dict()
     risk_dict = risk.to_dict()
 
+    # Serialise git_changes for the response.
+    git_changes_list = [
+        {"path": c.path, "status": c.status} for c in git_changes
+    ]
+
     data: Dict[str, Any] = {
+        # --- Task 06 fields ---
+        "source": source,
+        "git_changes": git_changes_list,
         # --- from ChangeImpactReport ---
         "changed_files": change_dict["changed_files"],
         "changed_modules": change_dict["changed_modules"],
@@ -215,6 +292,10 @@ def _run_analysis(
 def _validate_request(body: Dict[str, Any]) -> Optional[Tuple[str, str]]:
     """Validate the POST /analyze request body.
 
+    ``changed_files`` is now **optional** (Task 06 automatic mode).  When
+    omitted, Git change detection is used.  When supplied it must be a
+    non-empty list of strings (unchanged from Task 05).
+
     Args:
         body: Parsed JSON dict from the request.
 
@@ -225,15 +306,15 @@ def _validate_request(body: Dict[str, Any]) -> Optional[Tuple[str, str]]:
         return ("INVALID_REQUEST", "repo_path is required")
     if not isinstance(body["repo_path"], str) or not body["repo_path"].strip():
         return ("INVALID_REQUEST", "repo_path must be a non-empty string")
-    if "changed_files" not in body:
-        return ("INVALID_REQUEST", "changed_files is required")
-    if not isinstance(body["changed_files"], list):
-        return ("INVALID_REQUEST", "changed_files must be a list")
-    if len(body["changed_files"]) == 0:
-        return ("INVALID_REQUEST", "changed_files must not be empty")
-    for item in body["changed_files"]:
-        if not isinstance(item, str):
-            return ("INVALID_REQUEST", "each entry in changed_files must be a string")
+    # changed_files is optional in Task 06 automatic mode.
+    if "changed_files" in body:
+        if not isinstance(body["changed_files"], list):
+            return ("INVALID_REQUEST", "changed_files must be a list")
+        if len(body["changed_files"]) == 0:
+            return ("INVALID_REQUEST", "changed_files must not be empty")
+        for item in body["changed_files"]:
+            if not isinstance(item, str):
+                return ("INVALID_REQUEST", "each entry in changed_files must be a string")
     return None
 
 
@@ -384,9 +465,11 @@ class _ImpactOSHandler(BaseHTTPRequestHandler):
             return
 
         # 4. Run the analysis pipeline
+        # changed_files is optional (Task 06): pass None when absent to
+        # trigger automatic Git change detection.
         ok, status, response_body = _run_analysis(
             repo_path=body["repo_path"],
-            changed_files=body["changed_files"],
+            changed_files=body.get("changed_files"),  # None if omitted
         )
         self._send_json(status, response_body)
 
