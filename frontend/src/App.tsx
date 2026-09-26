@@ -1,4 +1,9 @@
-import { useState, useCallback, useMemo } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { Activity, GitBranch } from "lucide-react";
 
 import StatCard from "./components/StatCard";
@@ -7,26 +12,41 @@ import DependencyGraph, {
 } from "./components/DependencyGraph";
 import ImpactPanel from "./components/ImpactPanel";
 import IncidentInvestigation from "./components/IncidentInvestigation";
-import { computeImpactMap, getMockImpactData } from "./utils/blastRadius";
+import BobInvestigation from "./components/BobInvestigation";
+import {
+  computeImpactMap,
+  getMockImpactData,
+} from "./utils/blastRadius";
 import { GRAPH_NODES, GRAPH_EDGES } from "./data/graphData";
 
 // Pre-compute the node-id list (stable — same order as GRAPH_NODES)
 const ALL_NODE_IDS = GRAPH_NODES.map((n) => n.id);
 
 function App() {
-  const [selected, setSelected] = useState<SelectedNode | null>(null);
+  const [selected, setSelected] =
+    useState<SelectedNode | null>(null);
 
-  const handleNodeSelect = useCallback((node: SelectedNode) => {
-    setSelected(node);
-  }, []);
+  const bobSectionRef = useRef<HTMLElement | null>(null);
+
+  const handleNodeSelect = useCallback(
+    (node: SelectedNode) => {
+      setSelected(node);
+    },
+    [],
+  );
 
   // Recompute impact map whenever the selected node changes
   const impactMap = useMemo(() => {
     if (!selected) return {};
-    return computeImpactMap(selected.id, ALL_NODE_IDS, GRAPH_EDGES);
+
+    return computeImpactMap(
+      selected.id,
+      ALL_NODE_IDS,
+      GRAPH_EDGES,
+    );
   }, [selected]);
 
-  // Derive mock impact data (deterministic; no randomness)
+  // Derive mock impact data
   const impactData = useMemo(() => {
     if (!selected) return null;
 
@@ -38,9 +58,12 @@ function App() {
     );
   }, [selected, impactMap]);
 
+  // Scroll to Bob investigation
   const handleInvestigate = useCallback(() => {
-    // Placeholder — Builder A will wire this to Bob AI.
-    // B5 can turn this into the Bob investigation workflow.
+    bobSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   }, []);
 
   return (
@@ -82,13 +105,16 @@ function App() {
 
             <h2 className="text-4xl font-semibold tracking-tight text-white">
               Know what your code change
-              <span className="text-slate-500"> can break.</span>
+              <span className="text-slate-500">
+                {" "}can break.
+              </span>
             </h2>
 
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">
-              ImpactOS analyzes your repository, maps dependencies, predicts
-              change blast radius, and helps investigate production incidents
-              before they become expensive problems.
+              ImpactOS analyzes your repository, maps dependencies,
+              predicts change blast radius, and helps investigate
+              production incidents before they become expensive
+              problems.
             </p>
           </div>
         </section>
@@ -122,7 +148,7 @@ function App() {
 
         {/* Dependency + Impact */}
         <section className="mt-6 grid gap-6 lg:grid-cols-3">
-          {/* Dependency graph panel */}
+          {/* Dependency graph */}
           <div className="min-h-[420px] rounded-xl border border-white/10 bg-white/[0.03] lg:col-span-2">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
@@ -138,7 +164,6 @@ function App() {
               <GitBranch className="h-5 w-5 text-slate-500" />
             </div>
 
-            {/* Graph canvas */}
             <div className="h-[340px]">
               <DependencyGraph
                 onNodeSelect={handleNodeSelect}
@@ -148,7 +173,7 @@ function App() {
             </div>
           </div>
 
-          {/* Change Impact panel */}
+          {/* Change Impact */}
           <ImpactPanel
             selected={selected}
             impact={impactData}
@@ -156,13 +181,26 @@ function App() {
           />
         </section>
 
-        {/* ────────────────────────────────────────────────────────────────
-            B4 — Incident Investigation
-        ──────────────────────────────────────────────────────────────── */}
-
+        {/* B4 — Incident Investigation */}
         <section className="mt-8">
           <IncidentInvestigation
             onInvestigate={handleInvestigate}
+          />
+        </section>
+
+        {/* B5 — Bob Investigation */}
+        <section
+          ref={bobSectionRef}
+          className="mt-8 scroll-mt-6"
+        >
+          <BobInvestigation
+            onContinue={() => {
+              // B6 will connect this workflow to the real
+              // backend analysis endpoint.
+              console.log(
+                "Continue Bob investigation",
+              );
+            }}
           />
         </section>
       </main>
