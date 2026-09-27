@@ -14,8 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from analyzer.impact import compute_impact, compute_git_impact
-from analyzer.risk import assess_risk
+from analyzer.api import _run_analysis
 
 app = FastAPI(title="ImpactOS API")
 
@@ -34,27 +33,13 @@ class AnalyzeRequest(BaseModel):
 
 @app.post("/analyze")
 async def analyze(request: AnalyzeRequest):
-    try:
-        if request.changed_files:
-            result = compute_impact(request.repo_path, request.changed_files)
-            result["source"] = "manual"
-            result["git_changes"] = []
-        else:
-            result = compute_git_impact(request.repo_path)
-
-        result = assess_risk(result)
-        return {"success": True, "data": result}
-
-    except ValueError as exc:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "error": str(exc)},
-        )
-    except Exception as exc:
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "error": str(exc)},
-        )
+    ok, status_code, body = _run_analysis(
+        repo_path=request.repo_path,
+        changed_files=request.changed_files,
+    )
+    if status_code == 200:
+        return body
+    return JSONResponse(status_code=status_code, content=body)
 
 
 @app.get("/health")

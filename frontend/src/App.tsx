@@ -40,6 +40,8 @@ function App() {
 
   const handleBackendAnalysis = async () => {
   try {
+    // Analyzes the ImpactOS fixture repository (tests/fixtures/sample_app).
+    // This is the test data repository shipped with the backend.
     const result = await analyzeRepository({
       repo_path: "tests/fixtures",
       changed_files: ["sample_app/utils.py"],
@@ -196,16 +198,19 @@ function App() {
             onInvestigate={handleInvestigate}
           />
           <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.04] p-4">
-  <div className="flex items-center justify-between">
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
-        Backend Analyzer
-      </p>
-
-      <p className="mt-1 text-xs text-slate-500">
-        Repository analysis from the ImpactOS Python engine
-      </p>
-    </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+                Backend Analyzer
+              </p>
+        
+              <p className="mt-1 text-xs text-slate-500">
+                Repo:{" "}
+                <span className="font-mono text-slate-400">
+                  tests/fixtures — sample_app/utils.py
+                </span>
+              </p>
+            </div>
 
     <button
       onClick={handleBackendAnalysis}
@@ -272,12 +277,9 @@ function App() {
           className="mt-8 scroll-mt-6"
         >
           <BobInvestigation
+            analysis={analysis}
             onContinue={() => {
-              // B6 will connect this workflow to the real
-              // backend analysis endpoint.
-              console.log(
-                "Continue Bob investigation",
-              );
+              console.log("Continue Bob investigation");
             }}
           />
         </section>

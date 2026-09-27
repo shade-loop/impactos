@@ -15,50 +15,56 @@ interface IncidentInvestigationProps {
   onInvestigate?: () => void;
 }
 
+// ── DEMO DATA ────────────────────────────────────────────────────────────────
+// All values in this section are static demo constants. No incident management
+// system, telemetry, or deployment tracking is connected. These values exist
+// only to illustrate the UI layout; they do NOT reflect real incidents.
 const INCIDENT = {
   id: "INC-1042",
   title: "Checkout API latency spike",
   status: "Investigating",
   severity: "SEV-2",
-  detectedAt: "14:02",
-  openedAt: "14:14",
+  detectedAt: "14:02 (demo)",
+  openedAt: "14:14 (demo)",
 };
 
+// Demo timeline — static, not sourced from any monitoring or deployment system.
 const TIMELINE = [
   {
     time: "14:02",
     title: "Deployment detected",
-    description: "A new UserService version was deployed.",
+    description: "A new UserService version was deployed. (demo)",
     type: "change",
   },
   {
     time: "14:07",
     title: "Latency begins increasing",
-    description: "Checkout request latency starts deviating from baseline.",
+    description: "Checkout request latency starts deviating from baseline. (demo)",
     type: "signal",
   },
   {
     time: "14:11",
     title: "Error rate crosses threshold",
-    description: "Checkout failures exceed the configured alert threshold.",
+    description: "Checkout failures exceed the configured alert threshold. (demo)",
     type: "alert",
   },
   {
     time: "14:14",
     title: "Incident opened",
-    description: "Automated monitoring creates an incident for investigation.",
+    description: "Automated monitoring creates an incident for investigation. (demo)",
     type: "incident",
   },
 ];
 
-
+// Demo evidence — not verified against real telemetry.
 const EVIDENCE = [
-  "UserService was changed shortly before the incident began.",
-  "CheckoutService has a dependency path through UserService.",
-  "The observed degradation overlaps the recent deployment window.",
-  "PaymentService is downstream of the affected checkout path.",
+  "UserService was changed shortly before the incident began. (demo)",
+  "CheckoutService has a dependency path through UserService. (demo)",
+  "The observed degradation overlaps the recent deployment window. (demo)",
+  "PaymentService is downstream of the affected checkout path. (demo)",
 ];
 
+// Demo next steps — generic investigation guidance only.
 const NEXT_STEPS = [
   "Inspect UserService request latency before and after deployment.",
   "Compare checkout error rates against the previous release.",
@@ -76,6 +82,18 @@ export default function IncidentInvestigation({
         boxShadow: "0 10px 40px rgba(0,0,0,0.14)",
       }}
     >
+      {/* ── Demo data notice ─────────────────────────────────────────────── */}
+      <div
+        className="flex items-center gap-2 border-b border-amber-400/20 px-5 py-2.5"
+        style={{ background: "rgba(251,191,36,0.04)" }}
+      >
+        <AlertTriangle className="h-3 w-3 shrink-0 text-amber-400" />
+        <span className="text-[10px] font-medium text-amber-400/80">
+          Demo data — incident ID, timestamps, commit hash, and telemetry are
+          static placeholders. No real incident system is connected.
+        </span>
+      </div>
+
       {/* ── Header ───────────────────────────────────────────────────────── */}
 
       <div className="border-b border-white/10 px-5 py-4">
@@ -313,13 +331,13 @@ export default function IncidentInvestigation({
 
             <div className="mt-3 flex items-center gap-2 border-t border-white/5 pt-3">
               <span className="font-mono text-[9px] text-slate-600">
-                commit: a81f2c7
+                commit: a81f2c7 (demo)
               </span>
 
               <span className="text-slate-700">•</span>
 
               <span className="text-[9px] text-slate-600">
-                12 min before incident
+                12 min before incident (demo)
               </span>
             </div>
           </div>
